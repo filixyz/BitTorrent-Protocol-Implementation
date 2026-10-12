@@ -9,7 +9,9 @@
 #include <linux/limits.h>
 #include <system_error>
 
-file_mapper_t::file_mapper_t(std::filesystem::path directory, TorrentFile& torrent): f_descriptors(torrent.get_file_count()) {
+file_mapper_t::file_mapper_t(std::filesystem::path directory, TorrentFile& torrent)
+  : f_descriptors(torrent.get_file_count(), -1)  // -1 = no fd (not opened yet, or zero-size file)
+{
 
   std::error_code err;
   root_directory = std::filesystem::weakly_canonical(directory, err);
