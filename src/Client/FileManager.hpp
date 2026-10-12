@@ -1,7 +1,10 @@
 #pragma once
 #include "TorrentFile.hpp"
 #include "ThreadMessageTypes.hpp"
+#include <filesystem>
 #include <vector>
+
+class piece_mapper_t;
 
 struct file_piece_t {
   std::size_t file;
@@ -25,28 +28,34 @@ struct file_range {
   std::size_t end_byte;
 };
 
-using incoming_pieces_t =
-  beamable_spsc_t<download_piece_t, 50>;
+using incoming_pieces_t=beamable_spsc_t<download_piece_t, 50>;
 
-using outgoing_pieces_t =
-  beamable_spsc_t<upload_piece_t, 50>;
+using outgoing_pieces_t=beamable_spsc_t<upload_piece_t, 50>;
 
-class piece_mapper_t;
+class file_mapper_t {
 
-class file_mapper_t {   friend piece_mapper_t;
-
+  std::filesystem::path root_directory;
   std::vector<int> f_descriptors;
-  bool preallocate(std::string path, file_range& ref, std::size_t index);
 
 public:
 
-  file_mapper_t(std::size_t size): f_descriptors(size) {}
+  file_mapper_t(std::filesystem::path directory, TorrentFile& torrent);
 
   // empty files dont need a file descriptor but need to be allocated for
   // file index compliance with piece mapper file indexing hence why ::get_handle_for
   // returns an oprional<int>
 
-  std::optional<int> get_handle_for(std::size_t file_idx);
+  std::optional<int> get_handle_for(std::size_t file_idx) const;
+
+private:
+
+  friend piece_mapper_t;
+
+  std::optional<std::filesystem::path> if_valid_get_path (const ben::decoded_type::list& path_list) const;
+
+  bool is_valid_name(const std::string& name) const;
+
+  bool preallocate(const std::filesystem::path&, file_range& , std::size_t file_idx);
 
 };
 
@@ -58,7 +67,7 @@ class piece_mapper_t {
 public:
 
   piece_mapper_t( TorrentFile&, file_mapper_t& );
-  std::vector<file_piece_t> files_for(std::size_t piece_idx);
+  std::vector<file_piece_t> files_for(std::size_t piece_idx) const;
 
 };
 
@@ -67,19 +76,8 @@ struct FileManager {
   file_mapper_t file_map;
   piece_mapper_t piece_map;
 
-  //incoming_pieces_t piece_producer;
-  //outgoing_pieces_t& piece_consumer;
-
-  FileManager(TorrentFile& torrent):
-    file_map(torrent.get_file_count()), piece_map(torrent, file_map)
+  FileManager(std::filesystem::path path, TorrentFile& torrent):
+    file_map(path, torrent), piece_map(torrent, file_map)
   {}
-
-
-  //void store_piece(download_piece_t&);
-  //bool retrieve_piece(upload_piece_t&);
-  //void store_piece(download_piece_t&);
-  //bool retrieve_piece(upload_piece_t&);
-
-  //FileManager(TorrentFile&);
 
 };
