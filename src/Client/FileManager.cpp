@@ -1,5 +1,6 @@
 #include "FileManager.hpp"
 #include <algorithm>
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -205,6 +206,8 @@ std::vector<file_piece_t> piece_mapper_t::files_for(std::size_t piece_index) con
 
 
 std::optional<int> file_mapper_t::get_handle_for(std::size_t file_idx) const {
+
+  assert(file_idx < f_descriptors.size());
 
   const auto file = f_descriptors[file_idx];
 
