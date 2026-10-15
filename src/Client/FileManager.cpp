@@ -47,6 +47,8 @@ void file_mapper_t::index_file(std::span<const std::string_view> path_names, std
 
 bool file_mapper_t::is_valid_name(const std::string_view name) const {
 
+  // very naive name validator
+
   if  (name.empty())                          return false;
   if  (name.length() > NAME_MAX)              return false;
   if  (name == "." or name == "..")           return false;
