@@ -1,28 +1,31 @@
 #include "../Client/TorrentFile.hpp"
 #include "../Client/FileManager.hpp"
 #include <ios>
-#include <string>
 #include "../Client/Hasher.hpp"
 
 int main(int argc, char* argv[]) {
 
-  if (argc != 3) { std::cerr << "give a metainfo file and piece index\n"; return 1; }
+  if (argc != 3) { std::cerr << "give a metainfo file and download path\n"; return 1; }
 
-  TorrentFile tfile{argv[1]};
-  FileManager disk (tfile);
-
-  std::size_t piece_index = std::stoull(argv[2]);
-
-  auto p10 = disk.piece_map.files_for(piece_index);
-
-  std::cout << "Piece: " << piece_index << " : ";
-  for (const auto& file_span: p10) {
-    std::cout << "{ " << file_span.file << ", " << file_span.offset << ", " <<  file_span.size << " }";
-    std::cout << ", ";
-  }
-  std::cout << '\n';
+  TorrentFile tfile {argv[1]};
+  FileManager disk  (argv[2], tfile);
 
   std::cout << std::boolalpha;
+
+  for ( std::size_t i = 0; i < tfile.get_file_count(); ++i ) {
+
+    auto& file = disk.file_map.get_file_at(i);
+
+    std::cout << "Path:\t\t" << file.path << '\n';
+    std::cout << "Desrciptor:\t" << file.descriptor << '\n';
+    std::cout << "Size:\t\t" << file.size << '\n';
+    std::cout << "created:\t" << file.created << '\n';
+
+    std::cout << '\n';
+
+  }
+
+
   std::cout << "Torrent Hash:\t\t" << Hasher::hex_stringify_hash(tfile.get_info_hash()) << '\n';
   std::cout << "Torrent Name:\t\t" << tfile.get_torrent_name() << '\n';
   std::cout << "Torrent Size:\t\t" << tfile.get_download_size() << '\n';

@@ -6,13 +6,15 @@
 #include <filesystem>
 #include <optional>
 #include <fcntl.h>
+#include <span>
 #include <stdexcept>
 #include <linux/limits.h>
+#include <string_view>
 #include <system_error>
 
-file_mapper_t::file_mapper_t(std::filesystem::path directory, TorrentFile& torrent)
-  : f_descriptors(torrent.get_file_count(), -1)  // -1 = no fd (not opened yet, or zero-size file)
-{
+file_mapper_t::file_mapper_t(std::filesystem::path directory, TorrentFile& torrent) {
+
+  file_table.reserve(torrent.get_file_count());
 
   std::error_code err;
   root_directory = std::filesystem::weakly_canonical(directory, err);
@@ -33,20 +35,30 @@ file_mapper_t::file_mapper_t(std::filesystem::path directory, TorrentFile& torre
 
 }
 
-bool file_mapper_t::is_valid_name(const std::string& name) const {
+void file_mapper_t::index_file(std::span<const std::string_view> path_names, std::size_t size) {
 
-  if  (name.empty())                           return false;
-  if  (name.length() > NAME_MAX)               return false;
-  if  (name == "." or name == "..")            return false;
-  if  (name.find('/')  != std::string::npos)   return false;
-  if  (name.find('\\') != std::string::npos)   return false;
-  if  (name.find('\0') != std::string::npos)   return false;
+  const auto path = if_valid_get_path(path_names);
+
+  if (!path) throw std::runtime_error{"Invalid file path from torrent"};
+
+  file_table.emplace_back( path.value(), size );
+
+}
+
+bool file_mapper_t::is_valid_name(const std::string_view name) const {
+
+  if  (name.empty())                          return false;
+  if  (name.length() > NAME_MAX)              return false;
+  if  (name == "." or name == "..")           return false;
+  if  (name.find('/')  != std::string::npos)  return false;
+  if  (name.find('\\') != std::string::npos)  return false;
+  if  (name.find('\0') != std::string::npos)  return false;
 
   return true;
 
 }
 
-std::optional<std::filesystem::path> file_mapper_t::if_valid_get_path (const ben::decoded_type::list& path) const {
+std::optional<std::filesystem::path> file_mapper_t::if_valid_get_path (std::span<const std::string_view> path) const {
 
   // very naive path validator
 
@@ -54,13 +66,7 @@ std::optional<std::filesystem::path> file_mapper_t::if_valid_get_path (const ben
 
   std::filesystem::path file_path = root_directory;
 
-
-  for (const auto& name_data : path ) {
-
-    if (name_data.type() != ben::encode_type::string)
-      return std::nullopt;
-
-    const auto& name = name_data.get_as<ben::decoded_type::string>();
+  for (const auto& name : path ) {
 
     if ( !is_valid_name(name) ) return std::nullopt;
 
@@ -80,6 +86,7 @@ std::optional<std::filesystem::path> file_mapper_t::if_valid_get_path (const ben
   auto relative_path = file_path.lexically_relative(root_directory);
 
   if (
+
     relative_path.empty()           or
     relative_path == "."            or
     *relative_path.begin() == ".."
@@ -90,19 +97,11 @@ std::optional<std::filesystem::path> file_mapper_t::if_valid_get_path (const ben
 
 }
 
-bool file_mapper_t::preallocate(const std::filesystem::path& file, file_range& ref, std::size_t file_idx) {
+bool file_mapper_t::preallocate(file_t& file) {
 
-  const std::size_t file_size = ref.end_byte - ref.start_byte;
-
-  std::filesystem::create_directories(file.parent_path());
-
-  if (!file_size) {
-    f_descriptors[file_idx] = -1;
-    return true;
-  }
+  std::filesystem::create_directories(file.path.parent_path());
 
   // allocate here.
-  // auto open_return = open(file.c_str(), 0, 0);
 
   return true;
 
@@ -116,11 +115,9 @@ piece_mapper_t::piece_mapper_t(TorrentFile& torrent, file_mapper_t& file_mapper)
 
     file_ranges[0] = { 0, static_cast<std::size_t>( torrent.get_download_size() ) };
 
-    std::string file_name { torrent.get_torrent_name() };
+    const auto name = torrent.get_torrent_name();
 
-    if (!file_mapper.is_valid_name(file_name)) throw std::runtime_error{"torrent path name invalid"};
-
-    file_mapper.preallocate( file_name, file_ranges[0], 0 );
+    file_mapper.index_file(std::span{&name, 1}, torrent.get_download_size());
 
     return;
 
@@ -148,11 +145,17 @@ piece_mapper_t::piece_mapper_t(TorrentFile& torrent, file_mapper_t& file_mapper)
       .second
       .get_as<ben::decoded_type::list>();
 
-    auto path = file_mapper.if_valid_get_path(path_list);
+    std::vector<std::string_view> decoded_path_list;
 
-    if (!path) throw std::runtime_error {"torrent path list Invalid"};
+    for (const auto& path : path_list) {
 
-    file_mapper.preallocate( path.value(), file_ranges[file_index], file_index );
+      if (path.type() != ben::encode_type::string) throw std::runtime_error{" torrent path list names not string "};
+
+      decoded_path_list.push_back(path.get_as<ben::decoded_type::string>());
+
+    }
+
+    file_mapper.index_file( decoded_path_list, file_size );
 
     start_byte += file_size;
 
@@ -204,15 +207,10 @@ std::vector<file_piece_t> piece_mapper_t::files_for(std::size_t piece_index) con
   return files;
 }
 
+file_t& file_mapper_t::get_file_at(std::size_t file_idx) {
 
-std::optional<int> file_mapper_t::get_handle_for(std::size_t file_idx) const {
+  assert(file_idx < file_table.size());
 
-  assert(file_idx < f_descriptors.size());
-
-  const auto file = f_descriptors[file_idx];
-
-  if (file == -1) return std::nullopt;
-
-  return file;
+  return file_table[file_idx];
 
 }

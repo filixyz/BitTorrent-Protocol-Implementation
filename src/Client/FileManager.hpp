@@ -4,7 +4,18 @@
 #include <filesystem>
 #include <vector>
 
-class piece_mapper_t;
+struct file_t {
+
+  bool created {false};
+  int descriptor  {-1}; // -1 = no fd (not opened yet, or zero-size file)
+  const std::size_t size {0};
+  const std::filesystem::path path;
+
+  file_t(const std::filesystem::path _path, std::size_t _size)
+    : size(_size), path(_path)
+  {}
+
+};
 
 struct file_piece_t {
   std::size_t file;
@@ -32,30 +43,29 @@ using incoming_pieces_t=beamable_spsc_t<download_piece_t, 50>;
 
 using outgoing_pieces_t=beamable_spsc_t<upload_piece_t, 50>;
 
+
 class file_mapper_t {
 
   std::filesystem::path root_directory;
-  std::vector<int> f_descriptors;
+  std::vector<file_t> file_table;
+
+private:
+
+  bool is_valid_name(const std::string_view name) const;
+
+  bool preallocate(file_t&);
+
+  std::optional<std::filesystem::path> if_valid_get_path (std::span<const std::string_view> path) const;
 
 public:
 
   file_mapper_t(std::filesystem::path directory, TorrentFile& torrent);
 
-  // empty files dont need a file descriptor but need to be allocated for
-  // file index compliance with piece mapper file indexing hence why ::get_handle_for
-  // returns an oprional<int>
+  file_t& get_file_at(std::size_t file_idx);
 
-  std::optional<int> get_handle_for(std::size_t file_idx) const;
+  // Should only be called in piece mappers constructor will for file mapper file indexing
 
-private:
-
-  friend piece_mapper_t;
-
-  std::optional<std::filesystem::path> if_valid_get_path (const ben::decoded_type::list& path_list) const;
-
-  bool is_valid_name(const std::string& name) const;
-
-  bool preallocate(const std::filesystem::path&, file_range& , std::size_t file_idx);
+  void index_file(std::span<const std::string_view> path_names, std::size_t size);
 
 };
 
