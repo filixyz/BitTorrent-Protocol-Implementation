@@ -1,3 +1,3 @@
-BitTorrent protocol for P2P Network Exchange built in C++ for Linux from scratch.
+An asynchronous BitTorrent (BEP 3) implementation written from scratch in C++20 on raw Linux syscalls. Bencode parsing, tracker communication, the peer wire protocol, piece management, non-blocking TCP networking, and piece-to-file mapping are implemented without protocol libraries.
 
-"I am railing alongside the torrent, whosoever grasps me may grasp me. Your crutch, however, I am not."
+HTTP tracker requests are delegated to libcurl, and event-driven I/O is built on libev.
