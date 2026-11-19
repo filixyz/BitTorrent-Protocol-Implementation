@@ -70,6 +70,7 @@ public:
   void rebuild_on_dead_bitfield(DynamicBitset&, bool is_seeder); // on peer disconnect
   void assign_blocks();
   void reclaim_assigned_blocks();
+  void block_completion_notification(std::size_t piece, std::size_t block_index);
 
 };
 
