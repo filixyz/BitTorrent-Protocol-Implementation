@@ -52,27 +52,64 @@ bool DynamicBitset::decode_as_payload (std::span<const std::uint8_t> bytes_view)
 }
 
 void DynamicBitset::operator|=(const DynamicBitset& other) {
+
   assert(length == other.length);
   for (std::size_t i=0; i < bitfield.size(); ++i)
     bitfield[i] |= other.bitfield[i];
+
 }
 
 void DynamicBitset::operator&=(const DynamicBitset& other) {
+
   assert(length == other.length);
   for (std::size_t i=0; i < bitfield.size(); ++i)
     bitfield[i] &= other.bitfield[i];
+
 }
 
-DynamicBitset DynamicBitset::operator|(const DynamicBitset& other) {
+DynamicBitset DynamicBitset::operator|(const DynamicBitset& other) const {
   DynamicBitset newset = *this;
   newset |= other;
   return newset;
 }
 
-DynamicBitset DynamicBitset::operator&(const DynamicBitset& other) {
+DynamicBitset DynamicBitset::operator&(const DynamicBitset& other) const{
   DynamicBitset newset = *this;
   newset &= other;
   return newset;
+}
+
+DynamicBitset DynamicBitset::operator~() const {
+
+  DynamicBitset newset = *this;
+
+  for (std::size_t i=0; i < newset.bitfield.size(); ++i)
+    newset.bitfield[i] = ~newset.bitfield[i];
+
+  return newset;
+
+}
+
+// negate of .is_subset_of(); equivalent to !bitset.is_subset_of()
+//
+bool DynamicBitset::has_bits_not_in(const DynamicBitset & other) const {
+
+  return !is_subset_of(other);
+
+}
+
+bool DynamicBitset::is_subset_of(const DynamicBitset & other) const {
+
+  assert(length == other.length);
+
+  for ( std::size_t i = 0; i < bitfield.size(); ++i ) {
+
+    if ( (bitfield[i] & ~other.bitfield[i]) != 0 )  return false;
+
+  }
+
+  return true;
+
 }
 
 std::size_t DynamicBitset::count() const {

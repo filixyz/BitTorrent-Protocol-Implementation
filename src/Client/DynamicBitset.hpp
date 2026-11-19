@@ -49,9 +49,10 @@ public:
   DynamicBitset()=default;
   DynamicBitset(std::size_t count);
 
-  DynamicBitset operator&(const DynamicBitset&);
+  DynamicBitset operator&(const DynamicBitset&) const;
+  DynamicBitset operator|(const DynamicBitset&) const;
+  DynamicBitset operator~() const;
   void operator&=(const DynamicBitset&);
-  DynamicBitset operator|(const DynamicBitset&);
   void operator|=(const DynamicBitset&);
 
   void set(std::size_t);
@@ -67,6 +68,9 @@ public:
   std::size_t find_first() const ;
   std::size_t find_next(std::size_t from) const;
   set_range_t set_bits() const;
+
+  bool is_subset_of(const DynamicBitset&) const;
+  bool has_bits_not_in(const DynamicBitset&) const;
 
   bool        decode_as_payload (std::span<const std::uint8_t> bitview);
   std::size_t encode_as_payload (std::span<std::byte>, std::size_t encoded) const;
