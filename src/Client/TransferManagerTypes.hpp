@@ -37,6 +37,7 @@ struct piece_downloading_t {
 struct piece_t {
 
   std::size_t    rank  {0}; // rank is equal to this pieces peers count
+  std::size_t    rank_index;
   piece_state_t  state {piece_state_t::free};
 
 };
@@ -54,14 +55,14 @@ using download_set_t = std::unordered_set <std::size_t, piece_downloading_t>;
 class piece_picker_t {
 
   std::vector<piece_t>      piece_map;
-  std::vector<std::size_t>  pieces;
+  std::vector<std::size_t>  ranked_pieces;
   std::vector<std::size_t>  rank_partition;
   download_set_t            download_set;
 
 public:
 
   piece_picker_t(std::size_t piece_count)
-    : piece_map(piece_count), pieces(piece_count), rank_partition( static_rank_partitions::count )
+    : piece_map(piece_count), ranked_pieces(piece_count), rank_partition( static_rank_partitions::count )
   {}
 
   void increase_piece_rank(std::size_t);   // for haves

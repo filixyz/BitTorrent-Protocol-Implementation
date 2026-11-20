@@ -20,6 +20,7 @@ public:
 };
 
 template <std::size_t N> class io_ring_buffer {
+
   static_assert(N!=0, "tcp_buffer size cannot be zero");
   std::size_t read{0}, write{0};
   std::size_t readable{0};
