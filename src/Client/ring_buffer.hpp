@@ -92,7 +92,7 @@ public:
   }
 
   bool pop (T& val) noexcept {
-    if (isempty())
+    if (empty())
       return false;
     val = std::move(cache[read]);
     --length;
@@ -100,7 +100,7 @@ public:
     return true;
   }
 
-  bool isempty() const noexcept {
+  bool empty() const noexcept {
     return length == 0;
   }
 
@@ -114,9 +114,36 @@ public:
     return length;
   }
 
+  // can break fifo if smart tricks are played
+  //
   readable_range_t readable_range() {
     return readable_range_t{*this};
   }
+
+  // if .empty() is true :
+  // the object at read index of the cache array is returned
+  // which should be logically garbage data so if it shoots
+  // you in the leg thats on you (being stupid)
+  //
+  T& front() {
+    return cache[read];
+  };
+
+  // discard_pop within readable_range breaks range semantics
+  // if this is something to be done exit the range forloop
+  // immediately discard_pop and your logic for that iteration
+  // is invoked, or else entries will be skipped.
+  //
+  void discard_pop() {
+
+    if (empty()) return;
+
+    --length;
+
+    read = plus_mask(read);
+
+  };
+
 };
 
 #endif

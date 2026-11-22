@@ -24,6 +24,26 @@ namespace bprotocol::constants {
   inline constexpr std::size_t connection_backlog = 128;
   inline constexpr std::size_t rankify_duration = 10; //secs
 
+  // minimum piece size in bittorrent is 16kib, to define what this implememtations
+  // largest servicable piece size will be, which determines things like:
+  // 1. max outstanding piece storage slots per torrent
+  // 2. max outstanding piece log size per peer
+  // the largest serviceable piece is is derived via:
+  //  2^(max_piece_size_exponent), value should not be less than 14,
+  // at 14 this property evaluates to 16kib, the minimum piece length according to the
+  // bittorrent spec
+  //
+  // This value should not go below min_piece_size_exponent
+  //
+  inline constexpr std::size_t max_piece_size_exponent = 24;
+
+  // This value should never be altered.
+  inline constexpr std::size_t min_piece_size_exponent = 14;
+
+  consteval std::size_t max_block_limit () {
+    return std::uint64_t{1} << (max_piece_size_exponent - min_piece_size_exponent);
+  }
+
   namespace peer {
     constexpr std::size_t max_reties = 3;
     constexpr std::size_t connect_timeout = 10;//seconds;
