@@ -3,13 +3,13 @@
 
 #include <algorithm>
 #include <cassert>
-#include <concepts>
 #include <cstdint>
+#include <execution>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <type_traits>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 #include <cstddef>
 #include "DynamicBitset.hpp"
@@ -17,7 +17,6 @@
 #include "Constants.hpp"
 
 struct piece_request_t {
-
 
   std::uint32_t piece_index;
   std::uint32_t block_index;
@@ -34,7 +33,7 @@ struct piece_request_t {
 
 class block_requests_list_t {
 
-  static_assert(sizeof(piece_request_t) == 16 and std::is_trivially_copyable_v<piece_request_t>);
+  static_assert(sizeof(piece_request_t) == 16 and  std::is_trivially_copyable_v<piece_request_t>);
 
   std::size_t sent_count {0};
   std::vector<piece_request_t> request_list;
@@ -156,38 +155,149 @@ struct piece_downloading_t {
   block_slot_t piece_storage;
 };
 
-struct piece_t {
 
-  std::size_t    rank  {0}; // rank is equal to this pieces peers count
-  std::size_t    rank_index;
-  piece_state_t  state {piece_state_t::free};
+namespace rank_partitions {
 
-};
-
-namespace static_rank_partitions {
-
-  static constexpr std::size_t count                  {2};
+  static constexpr std::size_t static_count           {2};
   static constexpr std::size_t seed_space_index       {0};
   static constexpr std::size_t inflights              {1};
 
 };
 
-using download_set_t = std::unordered_set <std::size_t, piece_downloading_t>;
+struct piece_t {
+
+  std::size_t    peer_count{0};
+  std::size_t    rank_index;
+  piece_state_t  state {piece_state_t::free};
+
+};
 
 class piece_picker_t {
+
+  using downloading_set_t = std::unordered_set <std::size_t, piece_downloading_t>;
 
   std::vector<piece_t>      piece_map;
   std::vector<std::size_t>  ranked_pieces;
   std::vector<std::size_t>  rank_partition;
-  download_set_t            download_set;
+  downloading_set_t         download_set;
+
+  // bool next_parition_range_null(std::size_t current_index) {
+
+  //   std::size_t partition_value = rank_partition[current_index];
+
+  //   std::size_t next_partition_value =
+  //     current_index + 1 < rank_partition.size() ? rank_partition[current_index + 1 ] :  partition_value;
+
+  //   // if a differece exists that means current partition is not empty
+
+  //   return next_partition_value - partition_value;
+
+  // }
+
+  bool paritition_exists(std::size_t current_index) {
+
+    return (current_index < rank_partition.size());
+
+  }
+
+  bool partition_has_pieces(std::size_t current_index) {
+
+    if (!paritition_exists(current_index)) return false;
+
+    if (current_index == 0) return rank_partition[1] - rank_partition[0];
+
+    return  rank_partition[current_index] - rank_partition[current_index-1];
+
+  }
+
+  std::optional<std::size_t> next_partiton_with_pieces_from (std::size_t partition) {
+
+    for(std::size_t current = partition + 1 ; partition < rank_partition.size(); ++current) {
+
+      if (partition_has_pieces(current)) return current;
+
+    }
+
+    return std::nullopt;
+
+  }
+
+  std::optional<std::size_t> prev_partition_with_pieces_from(std::size_t partition) {
+
+    if (partition <= rank_partitions::seed_space_index) return std::nullopt;
+
+    for (std::size_t current = partition - 1 ; partition >=  rank_partitions::seed_space_index; --current) {
+
+      if (partition_has_pieces(current)) return current;
+
+    }
+
+    return std::nullopt;
+
+  }
+
+  static std::size_t get_rank(piece_t& piece) {
+
+    // Since peer ranks are determeined by thier peer count and
+    // inflights and seed spaces already occupy the first two indexes
+    // of the peratition table index 0, and 1 respectively, and recall that we
+    // don't add ranks for seeders pieces, so a piece with a single leeching peer
+    // that pieces rank should be situated after the seeds space index which is
+    // 1 + pieces peer count AKA that pieces rank
+
+    return piece.peer_count + rank_partitions::seed_space_index;
+
+  }
 
 public:
 
   piece_picker_t(std::size_t piece_count)
-    : piece_map(piece_count), ranked_pieces(piece_count), rank_partition( static_rank_partitions::count )
-  {}
+    : piece_map(piece_count), ranked_pieces(piece_count), rank_partition( rank_partitions::static_count )
+  {
 
-  void increase_piece_rank(std::size_t);   // for haves
+    for (std::size_t index : std::views::iota(std::size_t{0}, piece_count)) {
+      piece_map[index].rank_index = index;
+      ranked_pieces[index] = index;
+    }
+
+  }
+
+  // for haves
+  void increase_piece_rank(std::size_t piece_index) {
+
+    auto& piece = piece_map[piece_index];
+
+    const std::size_t old_rank = get_rank(piece);
+    const std::size_t new_rank = ( piece.peer_count++, get_rank(piece) ); // increase peer_count then return new rank
+
+    // objective: swap this piece position with last piece in old rank.
+
+    auto next_partiiton_with_pieces = next_partiton_with_pieces_from(old_rank);
+
+    std::size_t last_piece_in_old_rank = next_partiiton_with_pieces ?
+        rank_partition[next_partiiton_with_pieces.value() - 1]
+      : piece_map.size() - 1;
+
+    std::size_t piece_old_rank_index = piece.rank_index;
+
+    std::swap(ranked_pieces[piece_old_rank_index], ranked_pieces[last_piece_in_old_rank]);
+
+    piece_map[last_piece_in_old_rank].rank_index = last_piece_in_old_rank;
+    piece_map[piece_old_rank_index].rank_index = piece_old_rank_index;
+
+    // next objective adjust rank parittion table accordingly
+
+    if (!paritition_exists(new_rank))
+      rank_partition.push_back(rank_partition[old_rank]);
+
+    if ( partition_has_pieces(new_rank) )
+      rank_partition[new_rank] -= 1;
+
+    if (rank_partition[new_rank] == rank_partition[old_rank])
+      rank_partition[old_rank] = rank_partition[old_rank - 1];
+
+  }
+
   void decrease_piece_rank(std::size_t);   // for disconnects and such
   bool rebuild_on_new_bitfield(DynamicBitset&);   // for new connects bitfield message
   void rebuild_on_dead_bitfield(DynamicBitset&, bool is_seeder); // on peer disconnect
