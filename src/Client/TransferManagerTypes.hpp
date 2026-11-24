@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <execution>
 #include <iterator>
 #include <optional>
 #include <ranges>
@@ -12,9 +11,10 @@
 #include <unordered_set>
 #include <vector>
 #include <cstddef>
-#include "DynamicBitset.hpp"
+//#include "DynamicBitset.hpp"
 #include <chrono>
 #include "Constants.hpp"
+#include <iostream>
 
 struct piece_request_t {
 
@@ -159,8 +159,8 @@ struct piece_downloading_t {
 namespace rank_partitions {
 
   static constexpr std::size_t static_count           {2};
-  static constexpr std::size_t seed_space_index       {0};
-  static constexpr std::size_t inflights              {1};
+  static constexpr std::size_t inflights              {0};
+  static constexpr std::size_t seed_space_index       {1};
 
 };
 
@@ -172,7 +172,7 @@ struct piece_t {
 
 };
 
-class piece_picker_t {
+struct piece_picker_t {
 
   using downloading_set_t = std::unordered_set <std::size_t, piece_downloading_t>;
 
@@ -212,7 +212,7 @@ class piece_picker_t {
 
   std::optional<std::size_t> next_partiton_with_pieces_from (std::size_t partition) {
 
-    for(std::size_t current = partition + 1 ; partition < rank_partition.size(); ++current) {
+    for(std::size_t current = partition + 1 ; current < rank_partition.size(); ++current) {
 
       if (partition_has_pieces(current)) return current;
 
@@ -226,7 +226,7 @@ class piece_picker_t {
 
     if (partition <= rank_partitions::seed_space_index) return std::nullopt;
 
-    for (std::size_t current = partition - 1 ; partition >=  rank_partitions::seed_space_index; --current) {
+    for (std::size_t current = partition - 1 ; current >=  rank_partitions::seed_space_index; --current) {
 
       if (partition_has_pieces(current)) return current;
 
@@ -274,24 +274,27 @@ public:
 
     auto next_partiiton_with_pieces = next_partiton_with_pieces_from(old_rank);
 
+    std::cout << "New, Old: " << new_rank << ", " << old_rank << '\n';
+
+
     std::size_t last_piece_in_old_rank = next_partiiton_with_pieces ?
-        rank_partition[next_partiiton_with_pieces.value() - 1]
+        rank_partition[next_partiiton_with_pieces.value()] - 1
       : piece_map.size() - 1;
 
     std::size_t piece_old_rank_index = piece.rank_index;
 
     std::swap(ranked_pieces[piece_old_rank_index], ranked_pieces[last_piece_in_old_rank]);
 
-    piece_map[last_piece_in_old_rank].rank_index = last_piece_in_old_rank;
-    piece_map[piece_old_rank_index].rank_index = piece_old_rank_index;
+    piece_map[ranked_pieces[last_piece_in_old_rank]].rank_index = last_piece_in_old_rank;
+    piece_map[ranked_pieces[piece_old_rank_index]].rank_index = piece_old_rank_index;
 
     // next objective adjust rank parittion table accordingly
 
     if (!paritition_exists(new_rank))
-      rank_partition.push_back(rank_partition[old_rank]);
-
-    if ( partition_has_pieces(new_rank) )
-      rank_partition[new_rank] -= 1;
+      rank_partition.push_back(piece_map.size() - 1);
+    else
+      //if ( partition_has_pieces(new_rank) )
+        rank_partition[new_rank] = last_piece_in_old_rank;
 
     if (rank_partition[new_rank] == rank_partition[old_rank])
       rank_partition[old_rank] = rank_partition[old_rank - 1];
@@ -299,8 +302,8 @@ public:
   }
 
   void decrease_piece_rank(std::size_t);   // for disconnects and such
-  bool rebuild_on_new_bitfield(DynamicBitset&);   // for new connects bitfield message
-  void rebuild_on_dead_bitfield(DynamicBitset&, bool is_seeder); // on peer disconnect
+  //bool rebuild_on_new_bitfield(DynamicBitset&);   // for new connects bitfield message
+  //void rebuild_on_dead_bitfield(DynamicBitset&, bool is_seeder); // on peer disconnect
   void assign_blocks();
   void reclaim_assigned_blocks();
   void block_completion_notification(std::size_t piece, std::size_t block_index);
