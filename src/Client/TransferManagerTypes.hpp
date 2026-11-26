@@ -272,29 +272,38 @@ public:
 
     // objective: swap this piece position with last piece in old rank.
 
-    auto next_partiiton_with_pieces = next_partiton_with_pieces_from(old_rank);
+    std::optional<std::size_t> next_partiiton_with_pieces = next_partiton_with_pieces_from(old_rank);
 
-    std::cout << "New, Old: " << new_rank << ", " << old_rank << '\n';
-
-
-    std::size_t last_piece_in_old_rank = next_partiiton_with_pieces ?
-        rank_partition[next_partiiton_with_pieces.value()] - 1
-      : piece_map.size() - 1;
+    std::size_t last_piece_in_old_rank = -1 + ( next_partiiton_with_pieces
+      ? rank_partition[next_partiiton_with_pieces.value()]
+      : piece_map.size()
+    );
 
     std::size_t piece_old_rank_index = piece.rank_index;
 
     std::swap(ranked_pieces[piece_old_rank_index], ranked_pieces[last_piece_in_old_rank]);
 
-    piece_map[ranked_pieces[last_piece_in_old_rank]].rank_index = last_piece_in_old_rank;
-    piece_map[ranked_pieces[piece_old_rank_index]].rank_index = piece_old_rank_index;
+    piece_map[ranked_pieces[last_piece_in_old_rank]] .rank_index = last_piece_in_old_rank;
+    piece_map[ranked_pieces[piece_old_rank_index]]   .rank_index = piece_old_rank_index;
 
     // next objective adjust rank parittion table accordingly
 
-    if (!paritition_exists(new_rank))
-      rank_partition.push_back(piece_map.size() - 1);
-    else
-      //if ( partition_has_pieces(new_rank) )
-        rank_partition[new_rank] = last_piece_in_old_rank;
+    if (!paritition_exists(new_rank)) rank_partition.emplace_back();
+
+    if (std::size_t next_rank = new_rank + 1; paritition_exists(next_rank) && rank_partition[next_rank] == rank_partition[new_rank]) {
+
+      std::size_t stale_empty_rank_value = rank_partition[next_rank];
+
+      for(; next_rank < rank_partition.size(); ++next_rank) {
+
+        if (rank_partition[next_rank] != stale_empty_rank_value) break;
+
+        rank_partition[next_rank] = last_piece_in_old_rank;
+      }
+
+    }
+
+    rank_partition[new_rank] = last_piece_in_old_rank;
 
     if (rank_partition[new_rank] == rank_partition[old_rank])
       rank_partition[old_rank] = rank_partition[old_rank - 1];
