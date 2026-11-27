@@ -18,11 +18,11 @@ int main() {
 
   for (std::size_t i = 1000; i != 0; --i) {
 
-    // for(const auto& a : piece_manager.ranked_pieces)  std::cout << a <<" : " << piece_manager.get_rank( piece_manager.piece_map[a] ) << "\t";
-    // std::cout << '\n';
-    // for(const auto& a : piece_manager.rank_partition) std::cout << a << "\t";
-    // std::cout << '\n';
-    // std::cout << '\n';
+    for(const auto& a : piece_manager.ranked_pieces)  std::cout << a <<" : " << piece_manager.get_rank( piece_manager.piece_map[a] ) << "\t";
+    std::cout << '\n';
+    for(const auto& a : piece_manager.rank_partition) std::cout << a << "\t";
+    std::cout << '\n';
+    std::cout << '\n';
 
     auto rand_piece = random.get();
 
@@ -34,8 +34,8 @@ int main() {
 
     dur = end__ - start__;
 
-    // std::cout << "Piece: " << rand_piece << " Increased Rank\n";
-    // std::cout << "---------------------------------------\n";
+    std::cout << "Piece: " << rand_piece << " Increased Rank\n";
+    std::cout << "---------------------------------------\n";
 
   }
 

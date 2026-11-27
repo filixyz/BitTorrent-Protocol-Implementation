@@ -196,7 +196,7 @@ struct piece_picker_t {
 
   bool paritition_exists(std::size_t current_index) {
 
-    return (current_index < rank_partition.size());
+    return (rank_partition[current_index] < ranked_pieces.size());
 
   }
 
@@ -204,9 +204,7 @@ struct piece_picker_t {
 
     if (!paritition_exists(current_index)) return false;
 
-    if (current_index == 0) return rank_partition[1] - rank_partition[0];
-
-    return  rank_partition[current_index] - rank_partition[current_index-1];
+    return rank_partition[current_index+1] - rank_partition[current_index];
 
   }
 
@@ -260,6 +258,8 @@ public:
       ranked_pieces[index] = index;
     }
 
+    rank_partition.push_back(piece_count);
+
   }
 
   // for haves
@@ -267,17 +267,20 @@ public:
 
     auto& piece = piece_map[piece_index];
 
-    const std::size_t old_rank = get_rank(piece);
+    // const std::size_t old_rank = get_rank(piece);
+
     const std::size_t new_rank = ( piece.peer_count++, get_rank(piece) ); // increase peer_count then return new rank
 
     // objective: swap this piece position with last piece in old rank.
 
-    std::optional<std::size_t> next_partiiton_with_pieces = next_partiton_with_pieces_from(old_rank);
+    //std::optional<std::size_t> next_partiiton_with_pieces = next_partiton_with_pieces_from(old_rank);
 
-    std::size_t last_piece_in_old_rank = -1 + ( next_partiiton_with_pieces
-      ? rank_partition[next_partiiton_with_pieces.value()]
-      : piece_map.size()
-    );
+    // std::size_t last_piece_in_old_rank = -1 + ( next_partiiton_with_pieces
+    //   ? rank_partition[next_partiiton_with_pieces.value()]
+    //   : piece_map.size()
+    // );
+
+    std::size_t last_piece_in_old_rank = rank_partition[new_rank] - 1;
 
     std::size_t piece_old_rank_index = piece.rank_index;
 
@@ -288,25 +291,16 @@ public:
 
     // next objective adjust rank parittion table accordingly
 
-    if (!paritition_exists(new_rank)) rank_partition.emplace_back();
+    if (!paritition_exists(new_rank)) rank_partition.push_back(piece_map.size());
 
-    if (std::size_t next_rank = new_rank + 1; paritition_exists(next_rank) && rank_partition[next_rank] == rank_partition[new_rank]) {
+    // for (std::size_t stale_empty_value = rank_partition[new_rank], rank = new_rank; rank != std::numeric_limits<std::size_t>::max(); --rank) {
 
-      std::size_t stale_empty_rank_value = rank_partition[next_rank];
+    //   if (rank_partition[rank] != stale_empty_value) break;
 
-      for(; next_rank < rank_partition.size(); ++next_rank) {
 
-        if (rank_partition[next_rank] != stale_empty_rank_value) break;
-
-        rank_partition[next_rank] = last_piece_in_old_rank;
-      }
-
-    }
+    // }
 
     rank_partition[new_rank] = last_piece_in_old_rank;
-
-    if (rank_partition[new_rank] == rank_partition[old_rank])
-      rank_partition[old_rank] = rank_partition[old_rank - 1];
 
   }
 
